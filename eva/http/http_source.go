@@ -177,10 +177,6 @@ func (source *httpSourceImpl) formulateUrl(operation string) string {
 // http.DefaultClient so that clients can be isolated from this shared failure state.
 //
 // By default, this client also sets a Timeout for all connections running through it.
-// If you feel this timeout does not satisfy your needs, feel free to override it using:
-//
-//   client := platform.NewHTTPClient()
-//   client.Timeout = 60 * time.Second
 //
 // Keep in mind that this timeout should be the MAXIMUM timeout for this client.
 // If you would like a lower, per-request timeout, please set request's Context
