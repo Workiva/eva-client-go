@@ -210,7 +210,7 @@ func newHTTPTransport() *http.Transport {
 	return &http.Transport{
 		Proxy:                 http.ProxyFromEnvironment,
 		DialContext:           dialer.DialContext,
-		ForceAttemptHTTP2:     true, // added in go 1.13, if your build breaks here.. update
+		ForceAttemptHTTP2:     true, // added in go 1.13
 		MaxIdleConns:          100,
 		MaxIdleConnsPerHost:   100, // note: different from default global transport
 		IdleConnTimeout:       90 * time.Second,

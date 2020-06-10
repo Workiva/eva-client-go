@@ -29,3 +29,4 @@ test_coverage.txt
 coverage.txt
 test_reports.txt
 node_modules/
+vendor/
