@@ -1,21 +1,23 @@
 #! STAGE - Build Client Library
-FROM golang:1.12-alpine3.9 as build_go_lib
+FROM golang:1.14-alpine as build_go_lib
 
 WORKDIR /go/src/github.com/Workiva/eva-client-go
 RUN apk add --update bash curl git gcc libc-dev openssh-client
 ENV IS_SMITHY=1
 
 # Install Go Tools
-RUN curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
 RUN go get -u github.com/tebeka/go2xunit
 
-# Verify Dependencies are Vendored
+# Cache Dependencies
 WORKDIR /go/src/github.com/Workiva/eva-client-go/
+COPY ./go.mod ./go.mod
+COPY ./go.sum ./go.sum
+RUN go mod download
+RUN go mod verify
+
+# Copy in Code
 COPY ./edn ./edn
 COPY ./eva ./eva
-COPY ./vendor ./vendor
-COPY ./Gopkg.toml ./Gopkg.toml
-RUN dep ensure -dry-run
 
 # Lint Code
 COPY ./scripts ./scripts

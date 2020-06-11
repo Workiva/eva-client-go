@@ -16,35 +16,54 @@ commands:
 jobs:
   checkout_code:
     docker:
-      - image: circleci/golang:1.12.6
-    working_directory: /go/src/github.com/Workiva/eva-client-go/
+      - image: cimg/go:1.14.4
+    working_directory: /home/circleci/go/src/github.com/Workiva/eva-client-go/
     steps:
       - checkout
       - save_cache:
           key: v1-repo-{{ .Environment.CIRCLE_SHA1 }}
           paths:
-            - /go/src/github.com/Workiva/eva-client-go/
+            - /home/circleci/go/src/github.com/Workiva/eva-client-go/
 
-  bundle_dependencies:
+  bundle_node_dependencies:
     docker:
-      - image: circleci/golang:1.12.6-node
-    working_directory: /go/src/github.com/Workiva/eva-client-go/
+      - image: cimg/go:1.14.4-node
+    working_directory: /home/circleci/go/src/github.com/Workiva/eva-client-go/
     steps:
       - restore_cache:
           keys:
             - v1-repo-{{ .Environment.CIRCLE_SHA1 }}
+      - restore_cache:
+          keys:
             - v1-node-dependencies-{{ checksum "package.json" }}
-      - run: dep ensure -dry-run
       - run: npm install
       - save_cache:
           key: v1-node-dependencies-{{ checksum "package.json" }}
           paths:
             - ~/node_modules
 
+  bundle_go_dependencies:
+    docker:
+      - image: cimg/go:1.14.4
+    working_directory: /home/circleci/go/src/github.com/Workiva/eva-client-go/
+    steps:
+      - restore_cache:
+          keys:
+            - v1-repo-{{ .Environment.CIRCLE_SHA1 }}
+      - restore_cache:
+          keys:
+            - v1-go-dependencies-{{ checksum "go.mod" }}
+      - run: go mod download
+      - run: go mod verify
+      - save_cache:
+          key: v1-go-dependencies-{{ checksum "go.mod"" }}
+          paths:
+            - /home/circleci/go/pkg/mod
+
   verify_license_headers:
     docker:
-      - image: circleci/golang:1.12.6
-    working_directory: /go/src/github.com/Workiva/eva-client-go/
+      - image: cimg/go:1.14.4
+    working_directory: /home/circleci/go/src/github.com/Workiva/eva-client-go/
     steps:
       - restore_cache:
           keys:
@@ -53,52 +72,63 @@ jobs:
 
   verify_docs:
     docker:
-      - image: circleci/golang:1.12.6-node
-    working_directory: /go/src/github.com/Workiva/eva-client-go/
+      - image: cimg/go:1.14.4-node
+    working_directory: /home/circleci/go/src/github.com/Workiva/eva-client-go/
     steps:
       - restore_cache:
           keys:
             - v1-repo-{{ .Environment.CIRCLE_SHA1 }}
+      - restore_cache:
+          keys:
             - v1-node-dependencies-{{ checksum "package.json" }}
       # Verify Docs
       - run: ./.circleci/scripts/verify-docs.sh
 
   lint_code:
     docker:
-      - image: circleci/golang:1.12.6
-    working_directory: /go/src/github.com/Workiva/eva-client-go/
+      - image: cimg/go:1.14.4
+    working_directory: /home/circleci/go/src/github.com/Workiva/eva-client-go/
     steps:
       - restore_cache:
           keys:
             - v1-repo-{{ .Environment.CIRCLE_SHA1 }}
+      - restore_cache:
+          keys:
+            - v1-go-dependencies-{{ checksum "go.mod" }}
       - run: ./scripts/ci/gofmt.sh
 
   unit_tests:
     docker:
-      - image: circleci/golang:1.12.6
+      - image: cimg/go:1.14.4
     environment:
       FULL_TESTS: "true"
-    working_directory: /go/src/github.com/Workiva/eva-client-go/
+    working_directory: /home/circleci/go/src/github.com/Workiva/eva-client-go/
     steps:
       - restore_cache:
           keys:
             - v1-repo-{{ .Environment.CIRCLE_SHA1 }}
+      - restore_cache:
+          keys:
+            - v1-go-dependencies-{{ checksum "go.mod" }}
       - run: go test -v -cover -coverprofile=coverage.txt -covermode=atomic ./... -ginkgo.noColor -ginkgo.succinct
 
   go_build:
     docker:
-      - image: circleci/golang:1.12.6
-    working_directory: /go/src/github.com/Workiva/eva-client-go/
+      - image: cimg/go:1.14.4
+    working_directory: /home/circleci/go/src/github.com/Workiva/eva-client-go/
     steps:
       - restore_cache:
           keys:
             - v1-repo-{{ .Environment.CIRCLE_SHA1 }}
+      - restore_cache:
+          keys:
+            - v1-go-dependencies-{{ checksum "go.mod" }}
       - run: go build ./...
 
   verify_workiva_ci:
     docker:
-      - image: circleci/golang:1.12.6
-    working_directory: /go/src/github.com/Workiva/eva-client-go/
+      - image: cimg/go:1.14.4
+    working_directory: /home/circleci/go/src/github.com/Workiva/eva-client-go/
     steps:
       - restore_cache:
           keys:
@@ -116,7 +146,13 @@ workflows:
               only: /.*/
             branches:
               ignore: /[0-9a-f]{7}_cr_no_smithy/
-      - bundle_dependencies:
+      - bundle_node_dependencies:
+          requires:
+            - checkout_code
+          filters:
+            tags:
+              only: /.*/
+      - bundle_go_dependencies:
           requires:
             - checkout_code
           filters:
@@ -130,34 +166,35 @@ workflows:
               only: /.*/
       - verify_license_headers:
           requires:
-            - bundle_dependencies
+            - bundle_node_dependencies
             - checkout_code
           filters:
             tags:
               only: /.*/
       - verify_docs:
           requires:
-            - bundle_dependencies
+            - bundle_node_dependencies
             - checkout_code
           filters:
             tags:
               only: /.*/
       - lint_code:
           requires:
-            - bundle_dependencies
+            - bundle_go_dependencies
             - checkout_code
           filters:
             tags:
               only: /.*/
       - unit_tests:
           requires:
-            - bundle_dependencies
+            - bundle_go_dependencies
             - checkout_code
           filters:
             tags:
               only: /.*/
       - go_build:
           requires:
+            - bundle_go_dependencies
             - lint_code
             - unit_tests
           filters:
